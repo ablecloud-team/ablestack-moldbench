@@ -18,15 +18,15 @@
 package network
 
 import (
-	"csbench/config"
-	"csbench/utils"
 	"log"
 	"math"
 	"math/rand"
+	"moldbench/config"
+	"moldbench/utils"
 	"net/netip"
 	"strconv"
 
-	"github.com/apache/cloudstack-go/v2/cloudstack"
+	"github.com/ablecloud-team/ablestack-mold-go/v2/cloudstack"
 )
 
 func ListNetworks(cs *cloudstack.CloudStackClient, domainId string) ([]*cloudstack.Network, error) {
@@ -41,7 +41,8 @@ func ListNetworks(cs *cloudstack.CloudStackClient, domainId string) ([]*cloudsta
 		p.SetPage(page)
 		resp, err := cs.Network.ListNetworks(p)
 		if err != nil {
-			log.Printf("Failed to list networks due to %v", err)
+			// log.Printf("Failed to list networks due to %v", err)
+			utils.HandleError(err)
 			return result, err
 		}
 		result = append(result, resp.Networks...)
@@ -54,16 +55,17 @@ func ListNetworks(cs *cloudstack.CloudStackClient, domainId string) ([]*cloudsta
 	return result, nil
 }
 
-func CreateNetwork(cs *cloudstack.CloudStackClient, domainId string, count int) (*cloudstack.CreateNetworkResponse, error) {
+func CreateNetwork_cs(cs *cloudstack.CloudStackClient, domainId string, count int) (*cloudstack.CreateNetworkResponse, error) {
 	netName := "Network-" + utils.RandomString(10)
 	p := cs.Network.NewCreateNetworkParams(netName, config.NetworkOfferingId, config.ZoneId)
 	gateway, netmask, startIP, endIP, err := generateNetworkDetails(config.Subnet, count, config.Submask)
 	if err != nil {
-		log.Printf("Failed to generate network details due to %v", err)
+		// log.Printf("Failed to generate network details due to %v", err)
+		utils.HandleError(err)
 		return nil, err
 	}
 	p.SetDomainid(domainId)
-	p.SetAcltype("Domain")
+	p.SetAcltype("Account")
 	p.SetGateway(gateway)
 	p.SetNetmask(netmask)
 	p.SetDisplaytext(netName)
@@ -71,23 +73,55 @@ func CreateNetwork(cs *cloudstack.CloudStackClient, domainId string, count int) 
 	p.SetEndip(endIP)
 	p.SetVlan(strconv.Itoa(getRandomVlan()))
 	p.SetBypassvlanoverlapcheck(true)
-
 	resp, err := cs.Network.CreateNetwork(p)
 	if err != nil {
-		log.Printf("Failed to create network due to: %v", err)
+		// log.Printf("Failed to create network due to: %v", err)
+		utils.HandleError(err)
 		return nil, err
 	}
 	return resp, nil
 }
 
-func DeleteNetwork(cs *cloudstack.CloudStackClient, networkId string) (bool, error) {
+func CreateNetwork(cs *cloudstack.CloudStackClient, networkofferingid, vlan, domainId, subdomain, account string, count int) (*cloudstack.CreateNetworkResponse, error) {
+	netName := "Network-" + utils.RandomString(10)
+	p := cs.Network.NewCreateNetworkParams(netName, networkofferingid, config.ZoneId)
+	p.SetDomainid(subdomain)
+	p.SetAccount(account)
+	p.SetAcltype("Account")
+	p.SetDisplaytext(netName)
+	p.SetBypassvlanoverlapcheck(true)
+	if vlan != "" {
+		p.SetVlan(vlan)
+	}
+	resp, err := cs.Network.CreateNetwork(p)
+	if err != nil {
+		// log.Printf("Failed to create network due to: %v", err)
+		utils.HandleError(err)
+		return nil, err
+	}
+	return resp, nil
+}
+
+func DeleteNetwork_cs(cs *cloudstack.CloudStackClient, networkId string) (bool, error) {
 	deleteParams := cs.Network.NewDeleteNetworkParams(networkId)
 	delResp, err := cs.Network.DeleteNetwork(deleteParams)
 	if err != nil {
-		log.Printf("Failed to delete network with id %s due to %v", networkId, err)
+		// log.Printf("Failed to delete network with id %s due to %v", networkId, err)
+		utils.HandleError(err)
 		return false, err
 	}
 	return delResp.Success, nil
+}
+
+func DeleteNetwork(cs *cloudstack.CloudStackClient, networkId string) (*cloudstack.DeleteNetworkResponse, error) {
+	deleteParams := cs.Network.NewDeleteNetworkParams(networkId)
+	delResp, err := cs.Network.DeleteNetwork(deleteParams)
+	if err != nil {
+		// log.Printf("Failed to delete network with id %s due to %v", networkId, err)
+		utils.HandleError(err)
+		return nil, err
+	}
+	return delResp, nil
 }
 
 func getRandomVlan() int {

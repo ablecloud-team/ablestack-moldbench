@@ -1,5 +1,5 @@
 # URL of the CloudStack API endpoint
-url = http://localhost:8080/client/api/
+url = http://10.10.1.10:8080/client/api/
 # Number of times to run the test. Used only for -benchmark
 iterations = 1
 # Page of results to start on. Used only for -benchmark
@@ -7,25 +7,37 @@ page = 0
 # Max number of items to return per API call
 pagesize = 500
 # Zone to use for VMs. Used only for -create
-zoneid = 14f5f13d-06b7-4b78-bae9-f00c8e881abc
+zoneid = d0e3adac-9733-4d80-9dba-609dc29e65e1
 # Template to use for VMs. Used only for -create
-templateid = 583e9600-9fed-11ee-8fa0-7404f10c2178
+templateid = acb79ddd-4b7d-4cc4-b7a8-97bb598ef299
+# ostype to use for registerTemplate. Used only for -create
+ostypeid = 61e43eaf-f622-11ee-950c-002481560fd4
+# hypervisor to use for registerTemplate
+hypervisor = KVM
+# format to use for registerTemplate
+format = QCOW2
+# templateurl to use for registerTemplate
+templateurl = http://images.ablecloud.io/OS-template/Redhat-Series/rocky-9.2-minimal.qcow2
+# templatefilter to use for Template
+templatefilter = all
 # Service offering to use for VMs. Used only for -create
-serviceofferingid = 2e7419e0-8cc8-46e8-a4f9-eac3d5852d0c
+serviceofferingid = f92aa6fb-2698-455a-81af-2bc5b79a9915
 # Disk offering to use for volumes. Used only for -create
-diskofferingid = 2916d458-f686-4404-8a00-3704da0ee5b5
-# Shared network offering ID. Used only for -create
-networkofferingid = 3e0e6640-93ca-4429-9e9a-50545db793ad
+diskofferingid = 9b92a2f1-06f5-472d-a5bc-d62eefd2c141
+# Isolated network offering ID. Used only for -create
+networkofferingid = 3684e9fc-c61e-4aea-bb46-9d2a52cc2620
+# L2 network offering ID. Used only for -create
+l2networkofferingid = 24795bb6-a9a0-4307-bad8-f82b96c7e596
 # Domain ID of the parent domain to create the subdomains under. Used only for -create
-parentdomainid = e24ab778-9fec-11ee-8fa0-7404f10c2178
+parentdomainid = 21d03c27-f622-11ee-950c-002481560fd4
 # Number of domains to create. Creates a shared network for each domain. Used only for -create
-numdomains = 5
+numdomains = 1
 # Number of networks to create per domain. Used only for -create
 numnetworks = 1
 # Subnet to use for the networks. Used only for -network with -create
-subnet = 10.0.0.0
+subnet = 10.1.1.0
 # Subnet mask to use for the networks. Used only for -network with -create
-submask = 22
+submask = 24
 # Randomly allocated a VLAN from the range specified below. Used only for -network with -create
 vlanrange = 80-1000
 # Number of VMs to create per domain. Used only for -create
@@ -37,8 +49,8 @@ numvolumes = 1
 
 # Credentials to use to run -benchmark & -create. Name should be "admin" for -create
 [admin]
-apikey = x2glnzn09L_gCU5LFxz_2ph7RNZQ81HPrQlRiHKDv1TnjaJAoyNnhPZR65YM_mxj2YSaKLKTFPM_849EaVg2dg
-secretkey = BYAJ3_K_voCLE2CBbmweZu5dUmGCokshMg9xFb9qabOogkBPS8ARk6djrQT8w-XAsiDTDMUBYBmQsYqXeuaMKA
+apikey = PMMYhccuBIOqzbHJPsKoNcmd_h74smyzDh6oFOFfGAw
+secretkey = XFlWL2HS8qCthegeUk-l5DYsMsqnuFHd8E2_WGeVZ_c
 # Specifies duration after which the signature included in the request is expired
 expires = 600
 # Specifies the signature version to allow the client to force a specific signature version

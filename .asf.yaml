@@ -18,7 +18,7 @@
 # https://cwiki.apache.org/confluence/display/INFRA/git+-+.asf.yaml+features
 ---
 github:
-  description: "`csbench` is a benchmarking tool for Apache CloudStack"
+  description: "`moldbench` is a benchmarking tool for Apache CloudStack"
   homepage: https://cloudstack.apache.org/
   labels:
     - cloudstack

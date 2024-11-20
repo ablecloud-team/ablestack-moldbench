@@ -18,11 +18,10 @@
 package domain
 
 import (
-	"csbench/config"
-	"csbench/utils"
-	"log"
+	"moldbench/config"
+	"moldbench/utils"
 
-	"github.com/apache/cloudstack-go/v2/cloudstack"
+	"github.com/ablecloud-team/ablestack-mold-go/v2/cloudstack"
 )
 
 func CreateDomain(cs *cloudstack.CloudStackClient, parentDomainId string) (*cloudstack.CreateDomainResponse, error) {
@@ -30,38 +29,50 @@ func CreateDomain(cs *cloudstack.CloudStackClient, parentDomainId string) (*clou
 	p := cs.Domain.NewCreateDomainParams(domainName)
 	p.SetParentdomainid(parentDomainId)
 	resp, err := cs.Domain.CreateDomain(p)
-
 	if err != nil {
-		log.Printf("Failed to create domain due to: %v", err)
+		// log.Printf("Failed to create domain due to: %v", err)
+		utils.HandleError(err)
 		return nil, err
 	}
-	return resp, err
+	return resp, nil
 }
 
-func DeleteDomain(cs *cloudstack.CloudStackClient, domainId string) (bool, error) {
+func DeleteDomain_cs(cs *cloudstack.CloudStackClient, domainId string) (bool, error) {
 	deleteParams := cs.Domain.NewDeleteDomainParams(domainId)
 	deleteParams.SetCleanup(true)
 	delResp, err := cs.Domain.DeleteDomain(deleteParams)
 	if err != nil {
-		log.Printf("Failed to delete domain with id  %s due to %v", domainId, err)
+		// log.Printf("Failed to delete domain with id  %s due to %v", domainId, err)
+		utils.HandleError(err)
 		return delResp.Success, err
 	}
 	return delResp.Success, nil
 }
 
-func CreateAccount(cs *cloudstack.CloudStackClient, domainId string) (*cloudstack.CreateAccountResponse, error) {
-	accountName := "Account-" + utils.RandomString(10)
-	p := cs.Account.NewCreateAccountParams("test@test", accountName, "Account", "password", accountName)
-	p.SetDomainid(domainId)
-	p.SetAccounttype(2)
-
-	resp, err := cs.Account.CreateAccount(p)
-
+func DeleteDomain(cs *cloudstack.CloudStackClient, domainId string) (*cloudstack.DeleteDomainResponse, error) {
+	deleteParams := cs.Domain.NewDeleteDomainParams(domainId)
+	deleteParams.SetCleanup(true)
+	resp, err := cs.Domain.DeleteDomain(deleteParams)
 	if err != nil {
-		log.Printf("Failed to create account due to: %v", err)
+		// log.Printf("Failed to delete domain with id  %s due to %v", domainId, err)
+		utils.HandleError(err)
 		return nil, err
 	}
-	return resp, err
+	return resp, nil
+}
+
+func CreateAccount(cs *cloudstack.CloudStackClient, domainId string) (*cloudstack.CreateAccountResponse, error) {
+	accountName := "Account-" + utils.RandomString(10)
+	p := cs.Account.NewCreateAccountParams("test@test", accountName, "Account", "Ablecloud1!", accountName)
+	p.SetDomainid(domainId)
+	p.SetAccounttype(2)
+	resp, err := cs.Account.CreateAccount(p)
+	if err != nil {
+		// log.Printf("Failed to create account due to: %v", err)
+		utils.HandleError(err)
+		return nil, err
+	}
+	return resp, nil
 }
 
 func ListSubDomains(cs *cloudstack.CloudStackClient, domainId string) []*cloudstack.DomainChildren {
@@ -74,7 +85,8 @@ func ListSubDomains(cs *cloudstack.CloudStackClient, domainId string) []*cloudst
 		p.SetPage(page)
 		resp, err := cs.Domain.ListDomainChildren(p)
 		if err != nil {
-			log.Printf("Failed to list domains due to: %v", err)
+			// log.Printf("Failed to list domains due to: %v", err)
+			utils.HandleError(err)
 			return result
 		}
 		result = append(result, resp.DomainChildren...)
@@ -97,7 +109,8 @@ func ListAccounts(cs *cloudstack.CloudStackClient, domainId string) []*cloudstac
 		p.SetPage(page)
 		resp, err := cs.Account.ListAccounts(p)
 		if err != nil {
-			log.Printf("Failed to list accounts due to: %v", err)
+			// log.Printf("Failed to list accounts due to: %v", err)
+			utils.HandleError(err)
 			return result
 		}
 		result = append(result, resp.Accounts...)
@@ -117,15 +130,28 @@ func UpdateLimits(cs *cloudstack.CloudStackClient, account *cloudstack.Account) 
 		p.SetMax(-1)
 		_, err := cs.Limit.UpdateResourceLimit(p)
 		if err != nil {
-			log.Printf("Failed to update domain's resource limit due to: %v", err)
+			// log.Printf("Failed to update domain's resource limit due to: %v", err)
+			utils.HandleError(err)
 			return false
 		}
 		p.SetAccount(account.Name)
 		_, err = cs.Limit.UpdateResourceLimit(p)
 		if err != nil {
-			log.Printf("Failed to update account's resource limit due to: %v", err)
+			// log.Printf("Failed to update account's resource limit due to: %v", err)
+			utils.HandleError(err)
 			return false
 		}
 	}
 	return true
+}
+
+func DeleteAccount(cs *cloudstack.CloudStackClient, accountId string) (*cloudstack.DeleteAccountResponse, error) {
+	deleteParams := cs.Account.NewDeleteAccountParams(accountId)
+	resp, err := cs.Account.DeleteAccount(deleteParams)
+	if err != nil {
+		// log.Printf("Failed to delete account with id  %s due to %v", accountId, err)
+		utils.HandleError(err)
+		return nil, err
+	}
+	return resp, nil
 }

@@ -55,6 +55,13 @@ var VlanEnd = 1000
 var StartVM = true
 var NumVms = 1
 var NumVolumes = 1
+var Account = ""
+var OsTypeId = ""
+var Hypervisor = ""
+var Format = ""
+var TemplateUrl = ""
+var TemplateFilter = ""
+var L2NetworkOfferingId = ""
 
 func ReadProfiles(filePath string) (map[int]*Profile, error) {
 	file, err := os.Open(filePath)
@@ -186,6 +193,20 @@ func ReadProfiles(filePath string) (map[int]*Profile, error) {
 					if err == nil {
 						NumVolumes = numVolumes
 					}
+				case "account":
+					Account = value
+				case "ostypeid":
+					OsTypeId = value
+				case "hypervisor":
+					Hypervisor = value
+				case "format":
+					Format = value
+				case "templateurl":
+					TemplateUrl = value
+				case "templatefilter":
+					TemplateFilter = value
+				case "l2networkofferingid":
+					L2NetworkOfferingId = value
 				}
 			}
 		}

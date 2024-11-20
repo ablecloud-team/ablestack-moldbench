@@ -18,25 +18,24 @@
 package main
 
 import (
-	"csbench/domain"
-	"csbench/network"
-	"csbench/vm"
-	"csbench/volume"
 	"flag"
 	"fmt"
 	"io"
 	"math"
 	"math/rand"
+	"moldbench/apirunner"
+	"moldbench/config"
+	"moldbench/domain"
+	"moldbench/network"
+	"moldbench/vm"
+	"moldbench/volume"
 	"os"
 	"strings"
 	"time"
 
-	"csbench/apirunner"
-	"csbench/config"
-
 	log "github.com/sirupsen/logrus"
 
-	"github.com/apache/cloudstack-go/v2/cloudstack"
+	"github.com/ablecloud-team/ablestack-mold-go/v2/cloudstack"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/montanaflynn/stats"
 	"github.com/sourcegraph/conc/pool"
@@ -165,7 +164,6 @@ func generateReport(results map[string][]*Result, format string, outputFile stri
 	for key, result := range results {
 		allExecutionsSample, successfulExecutionSample, failedExecutionSample := getSamples(result)
 		t.AppendRow(getRowFromSample(fmt.Sprintf("%s - All", key), allExecutionsSample))
-
 		if failedExecutionSample.Len() != 0 {
 			t.AppendRow(getRowFromSample(fmt.Sprintf("%s - Successful", key), successfulExecutionSample))
 			t.AppendRow(getRowFromSample(fmt.Sprintf("%s - Failed", key), failedExecutionSample))
@@ -191,6 +189,8 @@ func generateReport(results map[string][]*Result, format string, outputFile stri
 }
 
 func main() {
+	license := flag.Bool("license", false, "Test Mold APIs")
+	simpletest := flag.Bool("simpletest", false, "Mold simple test APIs")
 	dbprofile := flag.Int("dbprofile", 0, "DB profile number")
 	create := flag.Bool("create", false, "Create resources. Specify at least one of the following options:\n\t"+
 		"-domain - Create subdomains and accounts\n\t"+
@@ -233,8 +233,8 @@ func main() {
 	}
 	flag.Parse()
 
-	if !(*create || *benchmark || *tearDown || *vmAction != "") {
-		log.Fatal("Please provide one of the following options: -create, -benchmark, -vmaction, -teardown")
+	if !(*license || *simpletest || *create || *benchmark || *tearDown || *vmAction != "") {
+		log.Fatal("Please provide one of the following options: -simpletest, -create, -benchmark, -vmaction, -teardown")
 	}
 
 	if *create && *tearDown && *vmAction == "" {
@@ -269,6 +269,14 @@ func main() {
 	iterations := config.Iterations
 	page := config.Page
 	pagesize := config.PageSize
+
+	if *simpletest {
+		fmt.Printf("\n\n\033[1;34mBenchmarking the CloudStack environment [%s] with the following configuration\033[0m\n\n", apiURL)
+		fmt.Printf("Management server : %s\n", config.Host)
+
+		results, order := createResources_simpletest()
+		apirunner.GenerateReport(results, order, *format, *outputFile)
+	}
 
 	if *create {
 		results := createResources(domainFlag, limitsFlag, networkFlag, vmFlag, volumeFlag, workers)
@@ -354,7 +362,7 @@ func executeVMAction(vmAction *string, workers *int) map[string][]*Result {
 			switch virtualMachine.State {
 			case "Running":
 				if *vmAction == "stop" || *vmAction == "toggle" || *vmAction == "random" {
-					err := vm.StopVM(cs, virtualMachine.Id)
+					err := vm.StopVM_cs(cs, virtualMachine.Id)
 					result = err == nil
 					action = "stop"
 				} else if *vmAction == "reboot" {
@@ -364,7 +372,7 @@ func executeVMAction(vmAction *string, workers *int) map[string][]*Result {
 				}
 			case "Stopped":
 				if *vmAction == "start" || *vmAction == "toggle" || *vmAction == "random" {
-					err := vm.StartVM(cs, virtualMachine.Id)
+					err := vm.StartVM_cs(cs, virtualMachine.Id)
 					result = err == nil
 					action = "start"
 				} else if *vmAction == "reboot" {
@@ -541,7 +549,7 @@ func createNetwork(workerPool *pool.ResultPool[*Result], cs *cloudstack.CloudSta
 
 			workerPool.Go(func() *Result {
 				taskStart := time.Now()
-				_, err := network.CreateNetwork(cs, dmn.Id, networkIdx)
+				_, err := network.CreateNetwork_cs(cs, dmn.Id, networkIdx)
 				if err != nil {
 					return &Result{
 						Success:  false,
@@ -738,7 +746,7 @@ func destroyVms(workerPool *pool.ResultPool[*Result], cs *cloudstack.CloudStackC
 
 		workerPool.Go(func() *Result {
 			taskStart := time.Now()
-			err := vm.DestroyVm(cs, virtualMachine.Id)
+			err := vm.DestroyVm_cs(cs, virtualMachine.Id)
 			if err != nil {
 				return &Result{
 					Success:  false,
@@ -778,7 +786,7 @@ func deleteNetworks(workerPool *pool.ResultPool[*Result], cs *cloudstack.CloudSt
 		}
 		workerPool.Go(func() *Result {
 			taskStart := time.Now()
-			resp, err := network.DeleteNetwork(cs, net.Id)
+			resp, err := network.DeleteNetwork_cs(cs, net.Id)
 			if err != nil || !resp {
 				return &Result{
 					Success:  false,
@@ -849,7 +857,7 @@ func deleteDomains(workerPool *pool.ResultPool[*Result], cs *cloudstack.CloudSta
 		}
 		workerPool.Go(func() *Result {
 			taskStart := time.Now()
-			resp, err := domain.DeleteDomain(cs, dmn.Id)
+			resp, err := domain.DeleteDomain_cs(cs, dmn.Id)
 			if !resp || err != nil {
 				return &Result{
 					Success:  false,
@@ -865,4 +873,281 @@ func deleteDomains(workerPool *pool.ResultPool[*Result], cs *cloudstack.CloudSta
 	res := workerPool.Wait()
 	log.Infof("Deleted %d domains in %.2f seconds", len(domains), time.Since(start).Seconds())
 	return res
+}
+
+func createResources_simpletest() (result map[string][]*apirunner.Results, order []string) {
+	apiURL := config.URL
+
+	for _, profile := range profiles {
+		if profile.Name == "admin" {
+			cs := cloudstack.NewAsyncClient(apiURL, profile.ApiKey, profile.SecretKey, false)
+
+			var result = make(map[string][]*apirunner.Results)
+			var order []string
+
+			fmt.Printf("\n\033[1;34m============================================================\033[0m\n")
+			fmt.Printf("                    moldbench\n")
+			fmt.Printf("\033[1;34m============================================================\033[0m\n")
+
+			// Create domain
+			domain := apirunner.CreateDomains(cs, config.ParentDomainId, config.NumDomains)
+			result["createDomain"] = append(result["createDomain"], domain)
+			order = append(order, "createDomain")
+			domain_res := strings.Split(domain.Id, ",")
+			if !domain.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Create account
+			account := apirunner.CreateAccount(cs, domain_res[0], config.NumDomains)
+			result["createAccount"] = append(result["createAccount"], account)
+			order = append(order, "createAccount")
+			account_res := strings.Split(account.Id, ",")
+			if !account.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			fmt.Printf("\n\033[1;34m============================================================\033[0m\n")
+			fmt.Printf("                    Domain: [%s]\n", domain_res[1])
+			fmt.Printf("                    Account: [%s]\n", account_res[1])
+			fmt.Printf("\033[1;34m============================================================\033[0m\n")
+
+			// Register template
+			template := apirunner.RegisterTemplate(cs, config.Format, config.Hypervisor, config.TemplateUrl, config.OsTypeId, config.ZoneId, domain_res[0], account_res[1])
+			result["registerTemplate"] = append(result["registerTemplate"], template)
+			order = append(order, "registerTemplate")
+			if !template.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], true)
+				return result, order
+			}
+			// log.Printf("Tepmlate: %v", template.Id)
+
+			// Register ISO
+			// iso := apirunner.RegisterIso(cs, config.Format, config.Hypervisor, config.TemplateUrl, config.OsTypeId, config.ZoneId)
+			// result["registerIso"] = append(result["registerIso"], iso)
+			// order = append(order, "registerIso")
+			// if !iso.Success {
+			// 	return result, order
+			// }
+
+			// Create network(Isolated & L2)
+			network := apirunner.CreateNetwork(cs, config.NetworkOfferingId, "", config.ParentDomainId, domain_res[0], account_res[1], config.NumDomains)
+			result["createNetwork(Isolated)"] = append(result["createNetwork(Isolated)"], network)
+			order = append(order, "createNetwork(Isolated)")
+			if !network.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			networkl2 := apirunner.CreateNetwork(cs, config.L2NetworkOfferingId, "untagged", config.ParentDomainId, domain_res[0], account_res[1], config.NumDomains)
+			result["createNetwork(L2)"] = append(result["createNetwork(L2)"], networkl2)
+			order = append(order, "createNetwork(L2)")
+			if !networkl2.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Create vm
+			vm := apirunner.CreateVms(cs, config.ParentDomainId, domain_res[0], account_res[1], network.Id, config.NumVms)
+			result["createVms"] = append(result["createVms"], vm)
+			order = append(order, "createVms")
+			if !vm.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Create volume & Attach volume
+			volume := apirunner.CreateVolumes(cs, domain_res[0], account_res[1], vm.Id, config.NumVolumes)
+			result["createVolumes"] = append(result["createVolumes"], volume)
+			order = append(order, "createVolumes")
+			if !volume.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Create volume snapshot
+			volumesnapshot := apirunner.CreateSnapshot(cs, volume.Id)
+			result["createSnapshot"] = append(result["createSnapshot"], volumesnapshot)
+			order = append(order, "createSnapshot")
+			if !volumesnapshot.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Delete volume snapshot
+			deleteSnapshot := apirunner.DeleteSnapshot(cs, volumesnapshot.Id)
+			result["deleteSnapshot"] = append(result["deleteSnapshot"], deleteSnapshot)
+			order = append(order, "deleteSnapshot")
+			if !deleteSnapshot.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Detach volume
+			detachVolume := apirunner.DetachVolume(cs, volume.Id)
+			result["detachVolume"] = append(result["detachVolume"], detachVolume)
+			order = append(order, "detachVolume")
+			if !detachVolume.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Delete volume
+			destroyVolume := apirunner.DestroyVolume(cs, volume.Id)
+			result["destroyVolume"] = append(result["destroyVolume"], destroyVolume)
+			order = append(order, "destroyVolume")
+			if !destroyVolume.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Create vm snapshot(vm snapshot 존재할 경우, attach volume 안됨)
+			vmsnapshot := apirunner.CreateVmSnapshot(cs, vm.Id)
+			result["createVmSnapshot"] = append(result["createVmSnapshot"], vmsnapshot)
+			order = append(order, "createVmSnapshot")
+			if !vmsnapshot.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Delete vm snapshot
+			deleteVmSnapshot := apirunner.DeleteVmSnapshot(cs, vmsnapshot.Id)
+			result["deleteVmSnapshot"] = append(result["deleteVmSnapshot"], deleteVmSnapshot)
+			order = append(order, "deleteVmSnapshot")
+			if !deleteVmSnapshot.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Stop vm
+			stopVm := apirunner.StopVm(cs, vm.Id)
+			result["stopVm"] = append(result["stopVm"], stopVm)
+			order = append(order, "stopVm")
+			if !stopVm.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Start vm
+			startVm := apirunner.StartVm(cs, vm.Id)
+			result["startVm"] = append(result["startVm"], startVm)
+			order = append(order, "startVm")
+			if !startVm.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Destroy Vm
+			destroyVm := apirunner.DestroyVm(cs, vm.Id)
+			result["destroyVm"] = append(result["destroyVm"], destroyVm)
+			order = append(order, "destroyVm")
+			if !destroyVm.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Delete Network(Isolated & L2)
+			deleteNetwork := apirunner.DeleteNetwork(cs, network.Id)
+			result["deleteNetwork(Isolated)"] = append(result["deleteNetwork(Isolated)"], deleteNetwork)
+			order = append(order, "deleteNetwork(Isolated)")
+			if !deleteNetwork.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			deleteNetwork = apirunner.DeleteNetwork(cs, networkl2.Id)
+			result["deleteNetwork(L2)"] = append(result["deleteNetwork(L2)"], deleteNetwork)
+			order = append(order, "deleteNetwork(L2)")
+			if !deleteNetwork.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Delete template
+			deleteTemplate := apirunner.DeleteTemplate(cs, domain_res[0])
+			result["deleteTemplate"] = append(result["deleteTemplate"], deleteTemplate)
+			order = append(order, "deleteTemplate")
+			if !deleteTemplate.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Delete Account
+			deleteAccount := apirunner.DeleteAccount(cs, account_res[0])
+			result["deleteAccount"] = append(result["deleteAccount"], deleteAccount)
+			order = append(order, "deleteAccount")
+			if !deleteAccount.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Delete Domain
+			deleteDomain := apirunner.DeleteDomain(cs, domain_res[0], true)
+			result["deleteDomain"] = append(result["deleteDomain"], deleteDomain)
+			order = append(order, "deleteDomain")
+			if !deleteDomain.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Create serviceOffering
+			serviceOffering := apirunner.CreateServiceOffering(cs, config.NumDomains)
+			result["createServiceOffering"] = append(result["createServiceOffering"], serviceOffering)
+			order = append(order, "createServiceOffering")
+			if !serviceOffering.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Delete serviceOffering
+			deleteserviceOffering := apirunner.DeleteServiceOffering(cs, serviceOffering.Id, config.NumDomains)
+			result["deleteServiceOffering"] = append(result["deleteServiceOffering"], deleteserviceOffering)
+			order = append(order, "deleteServiceOffering")
+			if !deleteserviceOffering.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Create diskoffering
+			diskOffering := apirunner.CreateDiskOffering(cs, config.NumDomains)
+			result["createDiskOffering"] = append(result["createDiskOffering"], diskOffering)
+			order = append(order, "createDiskOffering")
+			if !diskOffering.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Delete diskoffering
+			deletediskOffering := apirunner.DeleteDiskOffering(cs, diskOffering.Id, config.NumDomains)
+			result["deleteDiskOffering"] = append(result["deleteDiskOffering"], deletediskOffering)
+			order = append(order, "deleteDiskOffering")
+			if !deletediskOffering.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Create networkoffering
+			networkOffering := apirunner.CreateNetworkOffering(cs, config.NumDomains)
+			result["createNetworkOffering"] = append(result["createNetworkOffering"], networkOffering)
+			order = append(order, "createNetworkOffering")
+			if !networkOffering.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			// Delete networkoffering
+			deletenetworkOffering := apirunner.DeleteNetworkOffering(cs, networkOffering.Id, config.NumDomains)
+			result["deleteNetworkOffering"] = append(result["deleteNetworkOffering"], deletenetworkOffering)
+			order = append(order, "deleteNetworkOffering")
+			if !deletenetworkOffering.Success {
+				apirunner.DeleteDomain(cs, domain_res[0], false)
+				return result, order
+			}
+
+			return result, order
+		}
+	}
+	return nil, nil
 }

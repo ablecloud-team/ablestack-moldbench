@@ -20,7 +20,7 @@ package apirunner
 import (
 	"bufio"
 	"crypto/hmac"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
@@ -304,7 +304,7 @@ func executeAPI(apiURL string, params url.Values) (float64, float64, bool) {
 
 func generateSignature(unsignedRequest string, secretKey string) string {
 	unsignedRequest = strings.ToLower(unsignedRequest)
-	hasher := hmac.New(sha1.New, []byte(secretKey))
+	hasher := hmac.New(sha256.New, []byte(secretKey))
 	hasher.Write([]byte(unsignedRequest))
 	encryptedBytes := hasher.Sum(nil)
 
