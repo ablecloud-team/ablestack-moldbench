@@ -18,12 +18,10 @@
 package volume
 
 import (
-	"csbench/config"
-	"log"
+	"moldbench/config"
+	"moldbench/utils"
 
-	"github.com/apache/cloudstack-go/v2/cloudstack"
-
-	"csbench/utils"
+	"github.com/ablecloud-team/ablestack-mold-go/v2/cloudstack"
 )
 
 func ListVolumes(cs *cloudstack.CloudStackClient, domainId string) ([]*cloudstack.Volume, error) {
@@ -37,7 +35,8 @@ func ListVolumes(cs *cloudstack.CloudStackClient, domainId string) ([]*cloudstac
 		resp, err := cs.Volume.ListVolumes(p)
 
 		if err != nil {
-			log.Printf("Failed to list volume due to: %v", err)
+			// log.Printf("Failed to list volume due to: %v", err)
+			utils.HandleError(err)
 			return result, err
 		}
 		result = append(result, resp.Volumes...)
@@ -59,21 +58,21 @@ func CreateVolume(cs *cloudstack.CloudStackClient, domainId string, account stri
 	p.SetDiskofferingid(config.DiskOfferingId)
 	p.SetAccount(account)
 	resp, err := cs.Volume.CreateVolume(p)
-
 	if err != nil {
-		log.Printf("Failed to create volume due to: %v", err)
+		// log.Printf("Failed to create volume due to: %v", err)
+		utils.HandleError(err)
 		return nil, err
 	}
 	return resp, nil
 }
 
 func DestroyVolume(cs *cloudstack.CloudStackClient, volumeId string) (*cloudstack.DestroyVolumeResponse, error) {
-
 	p := cs.Volume.NewDestroyVolumeParams(volumeId)
 	p.SetExpunge(true)
 	resp, err := cs.Volume.DestroyVolume(p)
 	if err != nil {
-		log.Printf("Failed to destroy volume with id  %s due to %v", volumeId, err)
+		// log.Printf("Failed to destroy volume with id  %s due to %v", volumeId, err)
+		utils.HandleError(err)
 		return nil, err
 	}
 	return resp, nil
@@ -82,9 +81,9 @@ func DestroyVolume(cs *cloudstack.CloudStackClient, volumeId string) (*cloudstac
 func AttachVolume(cs *cloudstack.CloudStackClient, volumeId string, vmId string) (*cloudstack.AttachVolumeResponse, error) {
 	p := cs.Volume.NewAttachVolumeParams(volumeId, vmId)
 	resp, err := cs.Volume.AttachVolume(p)
-
 	if err != nil {
-		log.Printf("Failed to attach volume due to: %v", err)
+		// log.Printf("Failed to attach volume due to: %v", err)
+		utils.HandleError(err)
 		return nil, err
 	}
 	return resp, nil
@@ -96,7 +95,30 @@ func DetachVolume(cs *cloudstack.CloudStackClient, volumeId string) (*cloudstack
 	resp, err := cs.Volume.DetachVolume(p)
 
 	if err != nil {
-		log.Printf("Failed to detach volume due to: %v", err)
+		// log.Printf("Failed to detach volume due to: %v", err)
+		utils.HandleError(err)
+		return nil, err
+	}
+	return resp, nil
+}
+
+func CreateSnapshot(cs *cloudstack.CloudStackClient, volumeId string) (*cloudstack.CreateSnapshotResponse, error) {
+	p := cs.Snapshot.NewCreateSnapshotParams(volumeId)
+	resp, err := cs.Snapshot.CreateSnapshot(p)
+	if err != nil {
+		// log.Printf("Failed to create snapshot due to: %v", err)
+		utils.HandleError(err)
+		return nil, err
+	}
+	return resp, nil
+}
+
+func DeleteSnapshot(cs *cloudstack.CloudStackClient, snapshotId string) (*cloudstack.DeleteSnapshotResponse, error) {
+	p := cs.Snapshot.NewDeleteSnapshotParams(snapshotId)
+	resp, err := cs.Snapshot.DeleteSnapshot(p)
+	if err != nil {
+		// log.Printf("Failed to delete snapshot with id %s due to %v", snapshotId, err)
+		utils.HandleError(err)
 		return nil, err
 	}
 	return resp, nil

@@ -18,7 +18,9 @@
 package utils
 
 import (
+	"log"
 	"math/rand"
+	"runtime"
 	"time"
 )
 
@@ -34,4 +36,29 @@ func RandomString(n int) string {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(b)
+}
+
+func HandleError(err error) (b bool) {
+	if err != nil {
+		// notice that we're using 1, so it will actually log where
+		// the error happened, 0 = this function, we don't want that.
+		_, filename, line, _ := runtime.Caller(1)
+		log.Printf("[error] %s:%d %v", filename, line, err)
+		b = true
+	}
+	return
+}
+
+func HandleErrorTest(err bool) (b bool) {
+	if !err {
+		// notice that we're using 1, so it will actually log where
+		// the error happened, 0 = this function, we don't want that.
+		_, filename, line, _ := runtime.Caller(1)
+		log.Printf("[error] %s:%d %v", filename, line, err)
+		b = true
+
+		// delete domain
+		// apirunner.DeleteDomain(cs, domainId)
+	}
+	return
 }
