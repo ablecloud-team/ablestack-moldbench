@@ -41,6 +41,8 @@ var Page = 0
 var PageSize = 0
 var Host = ""
 var ZoneId = ""
+var PodId = ""
+var ClusterId = ""
 var NetworkOfferingId = ""
 var ServiceOfferingId = ""
 var DiskOfferingId = ""
@@ -62,6 +64,9 @@ var Format = ""
 var TemplateUrl = ""
 var TemplateFilter = ""
 var L2NetworkOfferingId = ""
+var Storage_name = ""
+var Storage_url = ""
+var Storage_id = ""
 
 func ReadProfiles(filePath string) (map[int]*Profile, error) {
 	file, err := os.Open(filePath)
@@ -134,6 +139,10 @@ func ReadProfiles(filePath string) (map[int]*Profile, error) {
 					}
 				case "zoneid":
 					ZoneId = value
+				case "podid":
+					PodId = value
+				case "clusterid":
+					ClusterId = value
 				case "networkofferingid":
 					NetworkOfferingId = value
 				case "serviceofferingid":
@@ -207,6 +216,12 @@ func ReadProfiles(filePath string) (map[int]*Profile, error) {
 					TemplateFilter = value
 				case "l2networkofferingid":
 					L2NetworkOfferingId = value
+				case "storage_name":
+					Storage_name = value
+				case "storage_url":
+					Storage_url = value
+				case "storage_id":
+					Storage_id = value
 				}
 			}
 		}

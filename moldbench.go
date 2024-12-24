@@ -27,6 +27,8 @@ import (
 	"moldbench/config"
 	"moldbench/domain"
 	"moldbench/network"
+	"moldbench/offering"
+	"moldbench/storage"
 	"moldbench/vm"
 	"moldbench/volume"
 	"os"
@@ -197,7 +199,9 @@ func main() {
 		"-limits - Update limits to -1 for subdomains and accounts\n\t"+
 		"-network - Create shared network in all subdomains\n\t"+
 		"-vm - Deploy VMs in all networks in the subdomains\n\t"+
-		"-volume - Create and attach Volumes to VMs")
+		"-volume - Create and attach Volumes to VMs\n\t"+
+		"-storage - Create Storage Pool to Primary Storage\n\t"+
+		"-offering - Create Offering to Disk Offering")
 	benchmark := flag.Bool("benchmark", false, "Benchmark list APIs")
 	domainFlag := flag.Bool("domain", false, "Works with -create & -teardown\n\t"+
 		"-create - Create subdomains and accounts\n\t"+
@@ -212,12 +216,24 @@ func main() {
 	volumeFlag := flag.Bool("volume", false, "Works with -create & -teardown\n\t"+
 		"-create - Create and attach Volumes to VMs\n\t"+
 		"-teardown - Delete all volumes in the subdomains")
+	storageFlag := flag.Bool("storage", false, "Works with -create & -teardown\n\t"+
+		"-create - Create storage\n\t"+
+		"-teardown - Delete all storage")
+	storageName := flag.String("storage_name", "", "Name of the storage Works with -create only")
+	storageURL := flag.String("storage_url", "", "URL of the storage Works with -create only (e.g., clvm://localhost//vg_1)")
 	vmAction := flag.String("vmaction", "", "Action to perform on VMs. Options:\n\t"+
 		"start - start all VMs\n\t"+
 		"stop - stop all VMs\n\t"+
 		"reboot - reboot all running VMs\n\t"+
 		"toggle - stop running VMs and start stopped VMs\n\t"+
 		"random - Randomly toggle VMs")
+	offeringType := flag.String("offering", "", "Types to Service Offerings, Options:\n\t"+
+		"disk - disk Offering\n\t"+
+		"compute - compute Offering\n\t"+
+		"network - network Offering\n\t"+
+		"system - system Offering\n\t"+
+		"vpc - vpc Offering")
+	offeringName := flag.String("offering_name", "", "Name of the offering Works with -create only")
 	tearDown := flag.Bool("teardown", false, "Tear down resources. Specify at least one of the following options:\n\t"+
 		"-domain - Delete all subdomains and accounts\n\t"+
 		"-network - Delete all networks in the subdomains\n\t"+
@@ -245,12 +261,26 @@ func main() {
 		log.Fatal("Invalid VM action. Please provide one of the following: start, stop, reboot, toggle, random")
 	}
 
-	if *create && !(*domainFlag || *limitsFlag || *networkFlag || *vmFlag || *volumeFlag) {
-		log.Fatal("Please provide one of the following options with create: -domain, -limits, -network, -vm, -volume")
+	if *create {
+		if !(*domainFlag || *limitsFlag || *networkFlag || *vmFlag || *volumeFlag || *storageFlag || *offeringType != "") {
+			log.Fatal("Please provide one of the following options with create: -domain, -limits, -network, -vm, -volume, -storage, -offering={type}")
+		}
+		if *storageFlag && (*storageName == "" || *storageURL == "") {
+			log.Fatal("Please provide -storage_name and -storage_url with -storage")
+		}
+		if *offeringType != "" && (*offeringType != "disk" && *offeringType != "network" && *offeringType != "system" && *offeringType != "vpc" && *offeringType != "compute") {
+			log.Fatal("Invalid offering type. Please provide -offering={type} (compute, system, disk, network, vpc)")
+		}
+		if *offeringType != "" && *offeringName == "" {
+			log.Fatal("Invalid offering type. Please provide -offering_name with -offering={type}")
+		}
+
 	}
 
-	if *tearDown && !(*domainFlag || *networkFlag || *vmFlag || *volumeFlag) {
-		log.Fatal("Please provide one of the following options with teardown: -domain, -network, -vm, -volume")
+	if *tearDown {
+		if !(*domainFlag || *limitsFlag || *networkFlag || *vmFlag || *volumeFlag) {
+			log.Fatal("Please provide one of the following options with teardown: -domain, -limits, -network, -vm, -volume")
+		}
 	}
 
 	switch *format {
@@ -279,7 +309,7 @@ func main() {
 	}
 
 	if *create {
-		results := createResources(domainFlag, limitsFlag, networkFlag, vmFlag, volumeFlag, workers)
+		results := createResources(domainFlag, limitsFlag, networkFlag, vmFlag, volumeFlag, storageFlag, storageName, storageURL, offeringType, offeringName, workers)
 		generateReport(results, *format, *outputFile)
 	}
 
@@ -403,7 +433,7 @@ func executeVMAction(vmAction *string, workers *int) map[string][]*Result {
 	return results
 }
 
-func createResources(domainFlag, limitsFlag, networkFlag, vmFlag, volumeFlag *bool, workers *int) map[string][]*Result {
+func createResources(domainFlag, limitsFlag, networkFlag, vmFlag, volumeFlag, storageFlag *bool, storageName, storageURL, offeringType, offeringName *string, workers *int) map[string][]*Result {
 	apiURL := config.URL
 
 	for _, profile := range profiles {
@@ -458,12 +488,58 @@ func createResources(domainFlag, limitsFlag, networkFlag, vmFlag, volumeFlag *bo
 				}
 			}
 
+			if *storageFlag {
+				workerPool := pool.NewWithResults[*Result]().WithMaxGoroutines(*workers)
+				results["storage_pool"] = createStoragePool(workerPool, cs, *storageName, *storageURL, config.ZoneId, config.PodId, config.ClusterId)
+			}
+
+			if *offeringType == "disk" {
+				workerPool := pool.NewWithResults[*Result]().WithMaxGoroutines(*workers)
+				results["disk_offering"] = createDiskOfferingClvm(workerPool, cs, *offeringName)
+			}
 			return results
 		}
 	}
 	return nil
 }
-
+func createDiskOfferingClvm(workerPool *pool.ResultPool[*Result], cs *cloudstack.CloudStackClient, offeringName string) []*Result {
+	workerPool.Go(func() *Result {
+		taskStart := time.Now()
+		_, err := offering.CreateDiskOfferingClvm(cs, offeringName)
+		if err != nil {
+			return &Result{
+				Success:  false,
+				Duration: time.Since(taskStart).Seconds(),
+			}
+		}
+		return &Result{
+			Success:  true,
+			Duration: time.Since(taskStart).Seconds(),
+		}
+	})
+	res := workerPool.Wait()
+	log.Infof("Created Disk Offering with CLVM %s", offeringName)
+	return res
+}
+func createStoragePool(workerPool *pool.ResultPool[*Result], cs *cloudstack.CloudStackClient, storage_name, storage_url, zoneid, pod_id, cluster_id string) []*Result {
+	workerPool.Go(func() *Result {
+		taskStart := time.Now()
+		_, err := storage.CreateStoragePool(cs, storage_name, storage_url, zoneid, pod_id, cluster_id)
+		if err != nil {
+			return &Result{
+				Success:  false,
+				Duration: time.Since(taskStart).Seconds(),
+			}
+		}
+		return &Result{
+			Success:  true,
+			Duration: time.Since(taskStart).Seconds(),
+		}
+	})
+	res := workerPool.Wait()
+	log.Infof("Created Storage Pool %s", storage_name)
+	return res
+}
 func createDomains(workerPool *pool.ResultPool[*Result], cs *cloudstack.CloudStackClient, parentDomainId string, count int) []*Result {
 	progressMarker := int(math.Max(float64(count)/10.0, 5))
 	start := time.Now()
@@ -719,7 +795,6 @@ func tearDownEnv(domainFlag, networkFlag, vmFlag, volumeFlag *bool, workers *int
 	}
 	return nil
 }
-
 func destroyVms(workerPool *pool.ResultPool[*Result], cs *cloudstack.CloudStackClient, parentDomainId string) []*Result {
 	log.Infof("Fetching subdomains & accounts for domain %s", parentDomainId)
 	domains := domain.ListSubDomains(cs, parentDomainId)

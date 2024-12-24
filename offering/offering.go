@@ -124,3 +124,16 @@ func DeleteNetworkOffering(cs *cloudstack.CloudStackClient, offeringId string) (
 	}
 	return resp, nil
 }
+
+func CreateDiskOfferingClvm(cs *cloudstack.CloudStackClient, offeringName string) (*cloudstack.CreateDiskOfferingResponse, error) {
+	p := cs.DiskOffering.NewCreateDiskOfferingParams(offeringName, offeringName)
+	p.SetCustomized(true)
+	p.SetTags(offeringName)
+	resp, err := cs.DiskOffering.CreateDiskOffering(p)
+	if err != nil {
+		// log.Printf("Failed to create diskofferings due to: %v", err)
+		utils.HandleError(err)
+		return nil, err
+	}
+	return resp, nil
+}
