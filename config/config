@@ -50,12 +50,6 @@ numvms = 1
 startvm = true
 # Number of volumes to create & attach per VM. Used only for -create
 numvolumes = 1
-# String Storage Name to create. Used only for -create
-storage_name =
-# String Storage Url to create . Used only for -create
-storage_url =
-# String Storage Id to delete. Used only for -create, -teardown
-storage_id =
 
 # Credentials to use to run -benchmark & -create. Name should be "admin" for -create
 [admin]
