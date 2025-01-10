@@ -1,6 +1,6 @@
 module moldbench
 
-go 1.23.3
+go 1.21.11
 
 require (
 	github.com/ablecloud-team/ablestack-mold-go/v2 v2.16.2

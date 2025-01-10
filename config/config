@@ -1,5 +1,5 @@
 # URL of the CloudStack API endpoint
-url = http://10.10.1.10:8080/client/api/
+url = http://10.10.32.10:8080/client/api/
 # Number of times to run the test. Used only for -benchmark
 iterations = 1
 # Page of results to start on. Used only for -benchmark
@@ -7,7 +7,11 @@ page = 0
 # Max number of items to return per API call
 pagesize = 500
 # Zone to use for VMs. Used only for -create
-zoneid = d0e3adac-9733-4d80-9dba-609dc29e65e1
+zoneid = 1e279ccc-23f6-4220-8e4b-8997d158d17b
+# Pod to use for VMs. Used only for -create
+podid = fe28247e-a010-4e64-8d08-f928006b9ede
+# Cluster to use for VMs. Used only for -create
+clusterid = 1da1b56a-d8e1-4d59-ae52-9548da0c2df1
 # Template to use for VMs. Used only for -create
 templateid = acb79ddd-4b7d-4cc4-b7a8-97bb598ef299
 # ostype to use for registerTemplate. Used only for -create
@@ -49,8 +53,8 @@ numvolumes = 1
 
 # Credentials to use to run -benchmark & -create. Name should be "admin" for -create
 [admin]
-apikey = PMMYhccuBIOqzbHJPsKoNcmd_h74smyzDh6oFOFfGAw
-secretkey = XFlWL2HS8qCthegeUk-l5DYsMsqnuFHd8E2_WGeVZ_c
+apikey = a4HPHuefHfSUW1KaJKb3cqeavGoeilcjU0Y7Yirg5_c
+secretkey = xsY3AaEihwdG_R4-E6RlYi8_rSLDjNdq79cWAIRyCRA
 # Specifies duration after which the signature included in the request is expired
 expires = 600
 # Specifies the signature version to allow the client to force a specific signature version
@@ -68,4 +72,3 @@ apikey =
 secretkey =
 expires = 600
 signatureversion = 3
-

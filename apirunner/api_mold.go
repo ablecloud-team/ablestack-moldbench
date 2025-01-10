@@ -24,6 +24,7 @@ import (
 	"moldbench/domain"
 	"moldbench/network"
 	"moldbench/offering"
+	"moldbench/storage"
 	"moldbench/template"
 	"moldbench/vm"
 	"moldbench/volume"
@@ -477,7 +478,7 @@ func DeleteTemplate(cs *cloudstack.CloudStackClient, subdomain string) *Results 
 	for {
 		var res *Results
 		res = ListTemplatesForDeleteDomain(cs, config.TemplateFilter, subdomain)
-		if (res.Id != "DOWNLOAD_IN_PROGRESS" && res.Id != "UPLOAD_IN_PROGRESS" && res.Id != "NOT_DOWNLOADED") {
+		if res.Id != "DOWNLOAD_IN_PROGRESS" && res.Id != "UPLOAD_IN_PROGRESS" && res.Id != "NOT_DOWNLOADED" {
 			log.Infof("Check Template can be deleted")
 			break
 		} else {
@@ -564,14 +565,14 @@ func DeleteDomain(cs *cloudstack.CloudStackClient, domainId string, flag bool) *
 		for {
 			var res *Results
 			res = ListTemplatesForDeleteDomain(cs, config.TemplateFilter, domainId)
-			if (res.Id != "DOWNLOAD_IN_PROGRESS" && res.Id != "UPLOAD_IN_PROGRESS" && res.Id != "NOT_DOWNLOADED") {
+			if res.Id != "DOWNLOAD_IN_PROGRESS" && res.Id != "UPLOAD_IN_PROGRESS" && res.Id != "NOT_DOWNLOADED" {
 				log.Infof("Check Template can be deleted")
 				break
 			} else {
 				log.Infof("Template cannot be deleted because it is being uploaded.(try: %d)", i)
 				time.Sleep(10 * time.Second)
 				i++
-	
+
 				if i == 10 {
 					break
 				}
@@ -706,5 +707,24 @@ func DeleteNetworkOffering(cs *cloudstack.CloudStackClient, offeringId string, c
 		Success:  true,
 		Duration: time.Since(start).Seconds(),
 		Id:       "",
+	}
+}
+
+func CreateStoragePool(cs *cloudstack.CloudStackClient, name, url, zoneid, pod_id, cluster_id string) *Results {
+	start := time.Now()
+	log.Infof("Creating Storage Pool %s %s %s %s %s", name, url, zoneid, pod_id, cluster_id)
+	result, err := storage.CreateStoragePool(cs, name, url, zoneid, pod_id, cluster_id)
+	if err != nil {
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       result.Id,
 	}
 }
